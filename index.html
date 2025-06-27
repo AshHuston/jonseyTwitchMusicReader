@@ -1,145 +1,164 @@
 <!DOCTYPE html>
 <html>
-<head>
+  <head>
     <meta charset="UTF-8" />
     <title>title</title>
-</head>
-<body>
-  <h1>Now Playing: <span id="track-name">None</span></h1>
+  </head>
+  <body>
+    <h1>Now Playing: <span id="track-name">None</span></h1>
 
-  <p><button id="pickFolderBtn">Pick Folder</button>  Folder Name: <span id="path-to-folder"></span></p>
-  
-  <br><br>
+    <p>
+      <button id="pickFolderBtn">Pick Folder</button> Folder Name:
+      <span id="path-to-folder"></span>
+    </p>
 
-  <label for="volumeSlider">Volume:</label>
-  <input type="range" id="volumeSlider" min="0" max="1" step="0.01" value="0.5" />
-  <br><br>
+    <br /><br />
+
+    <label for="volumeSlider">Volume:</label>
+    <input
+      type="range"
+      id="volumeSlider"
+      min="0"
+      max="1"
+      step="0.01"
+      value="0.5"
+    />
+    <br /><br />
     <!-- Shuffle Button -->
     <button id="shuffleButton" title="Restart Track">
-        <img src="shuffle.jpg" alt="Shuffle" style="height: 32px; width: 32px;" />
+      <img src="shuffle.jpg" alt="Shuffle" style="height: 32px; width: 32px" />
     </button>
-  <br><br>
+    <br /><br />
     <!-- Restart Track Button -->
     <button id="restartButton" title="Restart Track">
-        <img src="restart.jpg" alt="Restart" style="height: 32px; width: 32px;" />
+      <img src="restart.jpg" alt="Restart" style="height: 32px; width: 32px" />
     </button>
 
-  <button id="startButton" disabled>Start Playlist</button>
+    <button id="startButton" disabled>Start Playlist</button>
 
     <!-- Skip Track Button -->
     <button id="skipButton" title="Skip Track">
-        <img src="skip.jpg" alt="Skip" style="height: 32px; width: 32px;" />
+      <img src="skip.jpg" alt="Skip" style="height: 32px; width: 32px" />
     </button>
-    
-  <script>
-    let audioFiles = [];
-    let currentTrack = 0;
-    const audio = new Audio();
-    const trackNameSpan = document.getElementById('track-name');
-    const folderPathSpan = document.getElementById('path-to-folder');
-    let outputPath = ''
 
-    // Volume control
-    const volumeSlider = document.getElementById('volumeSlider');
-    audio.volume = volumeSlider.value;
-    volumeSlider.addEventListener('input', () => {
+    <script>
+      let audioFiles = [];
+      let currentTrack = 0;
+      const audio = new Audio();
+      const trackNameSpan = document.getElementById("track-name");
+      const folderPathSpan = document.getElementById("path-to-folder");
+      let outputPath = "";
+
+      // Volume control
+      const volumeSlider = document.getElementById("volumeSlider");
       audio.volume = volumeSlider.value;
-    });
+      volumeSlider.addEventListener("input", () => {
+        audio.volume = volumeSlider.value;
+      });
 
-    // Step 1: User picks a folder, read .m4a files
-    document.getElementById('pickFolderBtn').addEventListener('click', async () => {
-      audioFiles = [];
-      currentTrack = 0;
+      // Step 1: User picks a folder, read .m4a files
+      document
+        .getElementById("pickFolderBtn")
+        .addEventListener("click", async () => {
+          audioFiles = [];
+          currentTrack = 0;
 
-      try {
-        const dirHandle = await window.showDirectoryPicker();
-        folderPathSpan.textContent = dirHandle.name
-        // Iterate entries in the directory
-        for await (const [name, handle] of dirHandle.entries()) {
-          if (handle.kind === 'file' && (name.endsWith('.m4a') || name.endsWith('.wav') || name.endsWith('.mp3'))) {
-            const file = await handle.getFile();
-            audioFiles.push({
-              name: file.name,
-              url: URL.createObjectURL(file)
-            });
-          } else if (name === 'now playing.txt') {
-            outputPath = await dirHandle.getFileHandle(name, { create: true });
+          try {
+            const dirHandle = await window.showDirectoryPicker();
+            folderPathSpan.textContent = dirHandle.name;
+            // Iterate entries in the directory
+            for await (const [name, handle] of dirHandle.entries()) {
+              if (
+                handle.kind === "file" &&
+                (name.endsWith(".m4a") ||
+                  name.endsWith(".wav") ||
+                  name.endsWith(".mp3"))
+              ) {
+                const file = await handle.getFile();
+                audioFiles.push({
+                  name: file.name,
+                  url: URL.createObjectURL(file),
+                });
+              } else if (name === "now playing.txt") {
+                outputPath = await dirHandle.getFileHandle(name, {
+                  create: true,
+                });
+              }
+            }
+
+            if (audioFiles.length > 0) {
+              document.getElementById("startButton").disabled = false;
+              trackNameSpan.textContent = `Ready: ${audioFiles.length} file(s)`;
+            } else {
+              trackNameSpan.textContent = "No .m4a files found in folder.";
+              document.getElementById("startButton").disabled = true;
+            }
+          } catch (err) {
+            console.error("Folder pick cancelled or failed", err);
+            trackNameSpan.textContent = "No folder selected.";
+            document.getElementById("startButton").disabled = true;
+          }
+        });
+
+      async function writeToFile(name, fileHandle = outputPath) {
+        try {
+          const writable = await fileHandle.createWritable();
+          await writable.write(name);
+          await writable.close();
+          trackNameSpan.textContent = name.split('.').slice(0, -1).join('.');
+          console.log(`Wrote "${name}" to file.`);
+        } catch (err) {
+          console.error("Failed to write file:", err);
+        }
+      }
+
+      // Step 2: Play audio files in a loop
+      function playNext() {
+        const track = audioFiles[currentTrack];
+        audio.src = track.url;
+        writeToFile(track.name);
+        audio.play();
+        currentTrack = (currentTrack + 1) % audioFiles.length;
+      }
+
+      audio.addEventListener("ended", playNext);
+
+      // Step 3: Start playlist on button click
+      document.getElementById("startButton").addEventListener("click", () => {
+        if (audioFiles.length > 0) {
+          currentTrack = 0;
+          playNext();
+        }
+      });
+
+      // Skip to the next track
+      document.getElementById("skipButton").addEventListener("click", () => {
+        if (audioFiles.length > 0) {
+          audio.pause();
+          playNext();
+          console.log("Skipped song.");
+        }
+      });
+
+      // Restart the current track
+      document.getElementById("restartButton").addEventListener("click", () => {
+        if (audio.src) {
+          audio.currentTime = 0;
+          audio.play();
+          console.log("Restarted song.");
+        }
+      });
+
+      document.getElementById("shuffleButton").addEventListener("click", () => {
+        function shuffleArray(array) {
+          for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [array[i], array[j]] = [array[j], array[i]];
           }
         }
-
-        if (audioFiles.length > 0) {
-          document.getElementById('startButton').disabled = false;
-          trackNameSpan.textContent = `Ready: ${audioFiles.length} file(s)`;
-        } else {
-          trackNameSpan.textContent = 'No .m4a files found in folder.';
-          document.getElementById('startButton').disabled = true;
-        }
-      } catch (err) {
-        console.error('Folder pick cancelled or failed', err);
-        trackNameSpan.textContent = 'No folder selected.';
-        document.getElementById('startButton').disabled = true;
-      }
-    });
-
-    async function writeToFile(name, fileHandle = outputPath) {
-    try {
-        const writable = await fileHandle.createWritable();
-        await writable.write(name);
-        await writable.close();
-        trackNameSpan.textContent = name
-        console.log(`Wrote "${name}" to file.`);
-    } catch (err) {
-        console.error('Failed to write file:', err);
-    }
-    }
-
-    // Step 2: Play audio files in a loop
-    function playNext() {
-      const track = audioFiles[currentTrack];
-      audio.src = track.url;
-      writeToFile(track.name)
-      audio.play();
-      currentTrack = (currentTrack + 1) % audioFiles.length;
-    }
-
-    audio.addEventListener('ended', playNext);
-
-    // Step 3: Start playlist on button click
-    document.getElementById('startButton').addEventListener('click', () => {
-        if (audioFiles.length > 0) {
-        currentTrack = 0;
-        playNext();
-        }
-    });
-
-    // Skip to the next track
-    document.getElementById('skipButton').addEventListener('click', () => {
-        if (audioFiles.length > 0) {
-            audio.pause();
-            playNext();
-            console.log('Skipped song.')
-        }
-    });
-
-    // Restart the current track
-    document.getElementById('restartButton').addEventListener('click', () => {
-        if (audio.src) {
-            audio.currentTime = 0;
-            audio.play();
-            console.log('Restarted song.')
-        }
-    });
-
-    document.getElementById('shuffleButton').addEventListener('click', () => {
-        function shuffleArray(array) {
-            for (let i = array.length - 1; i > 0; i--) {
-                const j = Math.floor(Math.random() * (i + 1));
-                [array[i], array[j]] = [array[j], array[i]];
-            }
-        }
-        shuffleArray(audioFiles)
-        console.log('Shuffled songs!')
-    });
-  </script>
-</body>
+        shuffleArray(audioFiles);
+        console.log("Shuffled songs!");
+      });
+    </script>
+  </body>
 </html>
