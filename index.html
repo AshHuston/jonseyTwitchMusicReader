@@ -26,7 +26,7 @@
     <br /><br />
     <!-- Shuffle Button -->
     <button id="shuffleButton" title="Restart Track">
-      <img src="shuffle.jpg" alt="Shuffle" style="height: 32px; width: 32px" />
+      <img id="shuffleIcon" src="shuffle.jpg" alt="Shuffle" style="height: 32px; width: 32px; rotate: 0;" />
     </button>
     <br /><br />
     <!-- Restart Track Button -->
@@ -105,7 +105,7 @@
           const writable = await fileHandle.createWritable();
           await writable.write(name);
           await writable.close();
-          trackNameSpan.textContent = name.split('.').slice(0, -1).join('.');
+          trackNameSpan.textContent = name;
           console.log(`Wrote "${name}" to file.`);
         } catch (err) {
           console.error("Failed to write file:", err);
@@ -116,7 +116,7 @@
       function playNext() {
         const track = audioFiles[currentTrack];
         audio.src = track.url;
-        writeToFile(track.name);
+        writeToFile(track.name.split('.').slice(0, -1).join('.'));
         audio.play();
         currentTrack = (currentTrack + 1) % audioFiles.length;
       }
@@ -149,14 +149,25 @@
         }
       });
 
-      document.getElementById("shuffleButton").addEventListener("click", () => {
+      // Shuffle button
+      document.getElementById("shuffleButton").addEventListener("click", async () => {
         function shuffleArray(array) {
           for (let i = array.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
             [array[i], array[j]] = [array[j], array[i]];
           }
         }
+        function delay(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
         shuffleArray(audioFiles);
+        let currentRotation = 360
+        const img = document.getElementById('shuffleIcon');
+        while (currentRotation>0){
+            currentRotation -= 3
+            img.style.transform = `rotate(${currentRotation}deg)`;
+            await delay(.125)
+        }
         console.log("Shuffled songs!");
       });
     </script>
